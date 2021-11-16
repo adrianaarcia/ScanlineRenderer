@@ -20,15 +20,19 @@ This code includes:
 * Color interpolation
 
 # Running the Code
-The user can define values for the eye, lookat, and up vectors. An image named 'custom.ppm' will be produced using these values. 
+The user can define values for the `eye`, `lookat`, and `up` vectors. An image named 'custom.ppm' will be produced using these values. 
 Usage:
+
+```
   make
   ./run [eye value 1] [eye value 2] [eye value 3] [lookat value 1] [lookat value 2] [lookat value 3] [up value 1] [up value 2] [up value 3]
+```
+Running the code with no command line arguments will produce 8 images demonstrating the result of each of the steps in the description above with `eye` = (1,1,1), `lookat` = (0,0,0), and `up` =(0,1,0).
 
-Running the code with no command line arguments will produce 8 images demonstrating the result of each of the steps in the description above with eye = (1,1,1), lookat = (0,0,0), and up =(0,1,0).
+```
   make
   ./run
-
+````
 # Potential Improvements/Additions
 * Include texture mapping
 * The transform() function applies a matrix to a set of vertices. In order to apply more than one, I have
