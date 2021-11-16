@@ -13,300 +13,119 @@ using namespace std;
 //////////////////////////////////////////////////////////////////////////////////
 // Function declarations
 //////////////////////////////////////////////////////////////////////////////////
-void draw(const string& filename, vector<VEC4>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors, int xRes, int yRes, float* values, int mode);
+void draw(const string& filename, vector<VEC4>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors, int xres, int yres, float* values, int mode);
+void color_vertices(const vector<VEC4>vertices, vector<VEC3I>& indices, vector<VEC3>& colors, int xres, int yres, float* values);
+
+// Geometry Functions
+void construct_Mvp(float nx, float ny, MATRIX4& Mvp);
+void construct_Mortho(float l, float r, float t, float b, float n, float f, MATRIX4& Mortho);
+void construct_Mcam(VEC3 eye, VEC3 lookat, VEC3 up, MATRIX4& Mcam);
+void construct_Mper(float fovy, float aspect, float n, float f, MATRIX4& Mper);
+float imp_lin_eq(float x, float y, int i, int j, const float* xcoords, const float* ycoords);
+void build_big_square(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors);
+void build_square(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors);
+void build_cube(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors);
+void build_cube_vertex_colors(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors);
+
+// Vector Functions
+VEC3 truncate(const VEC4& v);
+VEC4 extend(const VEC3& v);
 void transform(vector<VEC4>& vertices, const MATRIX4& M);
-void constructMvp(float nx, float ny, MATRIX4& Mvp);
-void constructMortho(float l, float r, float t, float b, float n, float f, MATRIX4& Mortho);
-void constructMcam(VEC3 eye, VEC3 lookAt, VEC3 up, MATRIX4& Mcam);
-void constructMper(float fovy, float aspect, float n, float f, MATRIX4& Mper);
 void scale_vecs(vector<VEC4>& vertices, float scalar);
 void extend_vecs(const vector<VEC3>& vertices, vector<VEC4>& extended);
 void truncate_vecs(const vector<VEC4>& vertices, vector<VEC3>& truncated);
-void color_vertices(const vector<VEC4>vertices, vector<VEC3I>& indices, vector<VEC3>& colors, int xRes, int yRes, float* values);
-float imp_lin_eq(float x, float y, int i, int j, const float* xcoords, const float* ycoords);
-//////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////
-VEC3 truncate(const VEC4& v)
-{
-  return VEC3(v[0], v[1], v[2]);
-}
-VEC4 extend(const VEC3& v)
-{
-  return VEC4(v[0], v[1], v[2], 1.0);
-}
+
+// Utility Functions
+void clear_floats(int size, float* values);
+void read_ppm(const string& filename, int& xres, int& yres, float*& values);
+void write_ppm(const string& filename, int& xres, int& yres, const float* values);
 
 ///////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////
-void readPPM(const string& filename, int& xRes, int& yRes, float*& values)
+
+/* Viewport Matrix */
+void viewport_matrix(vector<VEC4>& extended, vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors, MATRIX4& Mvp, float nx, float ny, float* values) 
 {
-  // try to open the file
-  FILE *fp;
-  fp = fopen(filename.c_str(), "rb");
-  if (fp == NULL)
-  {
-    cout << " Could not open file \"" << filename.c_str() << "\" for reading." << endl;
-    cout << " Make sure you're not trying to read from a weird location or with a " << endl;
-    cout << " strange filename. Bailing ... " << endl;
-    exit(0);
-  }
+  int xres = (int) nx; int yres = (int) ny; int size = xres*yres*3;
+  clear_floats(size, values);
 
-  // get the dimensions
-  fscanf(fp, "P6\n%d %d\n255\n", &xRes, &yRes);
-  int totalCells = xRes * yRes;
+  construct_Mvp(nx, ny, Mvp); //construct viewport matrix
 
-  // grab the pixel values
-  unsigned char* pixels = new unsigned char[3 * totalCells];
-  fread(pixels, 1, totalCells * 3, fp);
-
-  // copy to a nicer data type
-  values = new float[3 * totalCells];
-  for (int i = 0; i < 3 * totalCells; i++)
-    values[i] = pixels[i];
-
-  // clean up
-  delete[] pixels;
-  fclose(fp);
-  cout << " Read in file " << filename.c_str() << endl;
-}
-
-///////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////
-void writePPM(const string& filename, int& xRes, int& yRes, const float* values)
-{
-  int totalCells = xRes * yRes;
-  unsigned char* pixels = new unsigned char[3 * totalCells];
-  for (int i = 0; i < 3 * totalCells; i++)
-    pixels[i] = values[i];
-
-  FILE *fp;
-  fp = fopen(filename.c_str(), "wb");
-  if (fp == NULL)
-  {
-    cout << " Could not open file \"" << filename.c_str() << "\" for writing." << endl;
-    cout << " Make sure you're not trying to write from a weird location or with a " << endl;
-    cout << " strange filename. Bailing ... " << endl;
-    exit(0);
-  }
-
-  fprintf(fp, "P6\n%d %d\n255\n", xRes, yRes);
-  fwrite(pixels, 1, totalCells * 3, fp);
-  fclose(fp);
-  delete[] pixels;
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// build out a single square
-//////////////////////////////////////////////////////////////////////////////////
-void buildBigSquare(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
-{
-  vertices.push_back(VEC3(1.0, 1.0, 1.5));
-  vertices.push_back(VEC3( 11.0, 1.0, 1.5));
-  vertices.push_back(VEC3(1.0,  11.0, 1.5));
-  vertices.push_back(VEC3( 11.0,  11.0, 1.5));
-
-  // front face
-  indices.push_back(VEC3I(0, 1, 2));
-  indices.push_back(VEC3I(2, 1, 3));
-  colors.push_back(VEC3(1.0, 0.0, 0.0));
-  colors.push_back(VEC3(0.0, 0.0, 1.0));
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// build out a single square
-//////////////////////////////////////////////////////////////////////////////////
-void buildSquare(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
-{
-  vertices.push_back(VEC3(-0.5, -0.5,  0.5)); //0 -- (200, 150)
-  vertices.push_back(VEC3( 0.5, -0.5,  0.5)); //1 -- (600, 150)
-  vertices.push_back(VEC3(-0.5,  0.5,  0.5)); //2 -- (200, 450)
-  vertices.push_back(VEC3( 0.5,  0.5,  0.5)); //3 -- (600, 450)
-
-  // front face
-  indices.push_back(VEC3I(0, 1, 2));
-  indices.push_back(VEC3I(2, 1, 3));
-  colors.push_back(VEC3(1.0, 0.0, 0.0));
-  colors.push_back(VEC3(0.0, 1.0, 0.0));
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// build out a cube
-//////////////////////////////////////////////////////////////////////////////////
-void buildCube(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
-{
-  vertices.push_back(VEC3(-0.5, -0.5,  0.5));
-  vertices.push_back(VEC3( 0.5, -0.5,  0.5));
-  vertices.push_back(VEC3(-0.5,  0.5,  0.5));
-  vertices.push_back(VEC3( 0.5,  0.5,  0.5));
-  vertices.push_back(VEC3(-0.5, -0.5, -0.5));
-  vertices.push_back(VEC3( 0.5, -0.5, -0.5));
-  vertices.push_back(VEC3(-0.5,  0.5, -0.5));
-  vertices.push_back(VEC3( 0.5,  0.5, -0.5));
-
-  // front face
-  indices.push_back(VEC3I(0, 1, 2));
-  indices.push_back(VEC3I(2, 1, 3));
-  colors.push_back(VEC3(1.0, 0.0, 0.0));
-  colors.push_back(VEC3(1.0, 0.0, 0.0));
-
-  // back face
-  indices.push_back(VEC3I(5, 4, 7));
-  indices.push_back(VEC3I(7, 4, 6));
-  colors.push_back(VEC3(0.0, 1.0, 0.0));
-  colors.push_back(VEC3(0.0, 1.0, 0.0));
-
-  // left face
-  indices.push_back(VEC3I(4, 0, 6));
-  indices.push_back(VEC3I(6, 0, 2));
-  colors.push_back(VEC3(0.0, 0.0, 1.0));
-  colors.push_back(VEC3(0.0, 0.0, 1.0));
-
-  // right face
-  indices.push_back(VEC3I(1, 5, 3));
-  indices.push_back(VEC3I(3, 5, 7));
-  colors.push_back(VEC3(0.0, 1.0, 1.0));
-  colors.push_back(VEC3(0.0, 1.0, 1.0));
-
-  // top face
-  indices.push_back(VEC3I(2, 3, 6));
-  indices.push_back(VEC3I(6, 3, 7));
-  colors.push_back(VEC3(1.0, 1.0, 0.0));
-  colors.push_back(VEC3(1.0, 1.0, 0.0));
-
-  // bottom face
-  indices.push_back(VEC3I(4, 5, 0));
-  indices.push_back(VEC3I(0, 5, 1));
-  colors.push_back(VEC3(1.0, 0.0, 1.0));
-  colors.push_back(VEC3(1.0, 0.0, 1.0));
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// build out a cube
-//////////////////////////////////////////////////////////////////////////////////
-void buildCubePerVertexColors(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
-{
-  vertices.push_back(VEC3(-0.5, -0.5,  0.5));
-  vertices.push_back(VEC3( 0.5, -0.5,  0.5));
-  vertices.push_back(VEC3(-0.5,  0.5,  0.5));
-  vertices.push_back(VEC3( 0.5,  0.5,  0.5));
-  vertices.push_back(VEC3(-0.5, -0.5, -0.5));
-  vertices.push_back(VEC3( 0.5, -0.5, -0.5));
-  vertices.push_back(VEC3(-0.5,  0.5, -0.5));
-  vertices.push_back(VEC3( 0.5,  0.5, -0.5));
-  colors.push_back(VEC3(1.0, 0.0, 0.0));
-  colors.push_back(VEC3(1.0, 0.0, 0.0));
-  colors.push_back(VEC3(0.0, 1.0, 0.0));
-  colors.push_back(VEC3(0.0, 1.0, 0.0));
-  colors.push_back(VEC3(0.0, 0.0, 1.0));
-  colors.push_back(VEC3(0.0, 0.0, 1.0));
-  colors.push_back(VEC3(1.0, 1.0, 0.0));
-  colors.push_back(VEC3(1.0, 1.0, 0.0));
-
-  // front face
-  indices.push_back(VEC3I(0, 1, 2));
-  indices.push_back(VEC3I(2, 1, 3));
-
-  // back face
-  indices.push_back(VEC3I(5, 4, 7));
-  indices.push_back(VEC3I(7, 4, 6));
-
-  // left face
-  indices.push_back(VEC3I(4, 0, 6));
-  indices.push_back(VEC3I(6, 0, 2));
-
-  // right face
-  indices.push_back(VEC3I(1, 5, 3));
-  indices.push_back(VEC3I(3, 5, 7));
-
-  // top face
-  indices.push_back(VEC3I(2, 3, 6));
-  indices.push_back(VEC3I(6, 3, 7));
-
-  // bottom face
-  indices.push_back(VEC3I(4, 5, 0));
-  indices.push_back(VEC3I(0, 5, 1));
-}
-
-/* Problem 1: Viewport Matrix */
-void p1(vector<VEC4>& extended, vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors, MATRIX4& Mvp, float nx, float ny, float* values) 
-{
-  int xRes = (int) nx; int yRes = (int) ny; int size = xRes*yRes*3;
-  memset(values,0,sizeof(float)*size);
-
-  constructMvp(nx, ny, Mvp); //construct viewport matrix
-
-  buildSquare(vertices, indices, colors);//get square
+  build_square(vertices, indices, colors);//get square
   extend_vecs(vertices, extended);
   
   transform(extended, Mvp); //apply viewport matrix
-  color_vertices(extended, indices, colors, xRes, yRes, values);
+  color_vertices(extended, indices, colors, xres, yres, values);
 
-  writePPM("1.ppm", xRes, yRes, values);
+  write_ppm("1_viewport_matrix.ppm", xres, yres, values);
 }
 
-/* Problem 2: Triangle Rasterization */
-void p2(vector<VEC4>& extended, vector<VEC3I>& indices, vector<VEC3>& colors, int xRes, int yRes, int size, float* values)
+/* Triangle Rasterization */
+void triangle_rasterization(vector<VEC4>& extended, vector<VEC3I>& indices, vector<VEC3>& colors, int xres, int yres, int size, float* values)
 {
-  memset(values,0,sizeof(float)*size); //clear values
-  draw("2.ppm", extended, indices, colors, xRes, yRes, values, 0); //draw and output, mode = 0 (simple rasterization)
+  clear_floats(size, values); //clear values
+
+  // rasterization occurs in draw()
+  draw("2_triangle_rasterization.ppm", extended, indices, colors, xres, yres, values, 0); //draw and output, mode = 0 (simple rasterization)
 }
 
-/* Problem 3: Orthographic Projection Matrix */
-void p3(vector<VEC4>& extended, vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors,
-const MATRIX4 Mvp, MATRIX4& Mortho, int xRes, int yRes, int size, float* values) 
+/* Orthographic Projection Matrix */
+void ortho_proj_matrix(vector<VEC4>& extended, vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors,
+const MATRIX4 Mvp, MATRIX4& Mortho, int xres, int yres, int size, float* values) 
 {
   //reinitialize vars
-  memset(values,0,sizeof(float)*size);
+  clear_floats(size, values);
   extended.clear(); vertices.clear(); indices.clear(); colors.clear(); 
   
-  buildBigSquare(vertices, indices, colors); //get big square
+  build_big_square(vertices, indices, colors); //get big square
   extend_vecs(vertices, extended);
 
   //construct Mortho
   float l, r, t, b, n, f; l = b = f = 0.0; r = t = n = 12.0; //planes
-  constructMortho(l, r, t, b, n, f, Mortho);
+  construct_Mortho(l, r, t, b, n, f, Mortho);
 
   //apply transforms
   transform(extended, Mortho); //apply Mortho
   transform(extended, Mvp); //apply Mvp
 
   //draw and output
-  draw("3.ppm", extended, indices, colors, xRes, yRes, values, 0);
+  draw("3_ortho_proj_matrix.ppm", extended, indices, colors, xres, yres, values, 0);
 }
 
-/* Problem 4: Camera Matrix */
-void p4(vector<VEC4>& extended, vector<VEC3I>& indices, vector<VEC3>& colors, MATRIX4& Mcam, int xRes, int yRes, int size, float* values) 
+/* Camera Matrix */
+void camera_matrix(vector<VEC4>& extended, vector<VEC3I>& indices, vector<VEC3>& colors, MATRIX4& Mcam, int xres, int yres, int size, float* values) 
 {
-  memset(values,0,sizeof(float)*size); //reinitialize some vars
+  clear_floats(size, values); //reinitialize some vars
 
-  VEC3 eye(0.2, 0.2, 1.0); VEC3 lookAt(0,0,0); VEC3 up(0,1,0); //given vectors
-  constructMcam(eye, lookAt, up, Mcam); //construct Mcam
+  VEC3 eye(0.2, 0.2, 1.0); VEC3 lookat(0,0,0); VEC3 up(0,1,0); //given vectors
+  construct_Mcam(eye, lookat, up, Mcam); //construct Mcam
   
   transform(extended, Mcam); //apply Mcam
-  draw("4.ppm", extended, indices, colors, xRes, yRes, values, 0); //draw and output
+  draw("4_camera_matrix.ppm", extended, indices, colors, xres, yres, values, 0); //draw and output
 }
 
-/* Problem 5: Perspective Projection Matrix */
-void p5(vector<VEC4>& extended, vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors, MATRIX4& Mvp, MATRIX4& Mcam, MATRIX4& Mper, 
-int xRes, int yRes, int size, float* values)
+/* Perspective Projection Matrix */
+void persp_proj_matrix(vector<VEC4>& extended, vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors, MATRIX4& Mvp, MATRIX4& Mcam, MATRIX4& Mper, 
+int xres, int yres, int size, float* values)
 {
   /* Reinitialize values */
-  memset(values,0,sizeof(float)*size);
+  clear_floats(size, values);
   extended.clear(); vertices.clear(); indices.clear(); colors.clear();
   
-  buildCube(vertices, indices, colors); //get cube
+  build_cube(vertices, indices, colors); //get cube
   extend_vecs(vertices, extended);
   scale_vecs(extended, 0.5); //scale by factor of 0.5
   
   /* Apply transforms */
 
   //Mcam
-  VEC3 eye(1.0, 1.0, 1.0); VEC3 lookAt(0.0,0.0,0.0); VEC3 up(0.0,1.0,0.0); //given vectors
-  constructMcam(eye, lookAt, up, Mcam);
+  VEC3 eye(1.0, 1.0, 1.0); VEC3 lookat(0.0,0.0,0.0); VEC3 up(0.0,1.0,0.0); //given vectors
+  construct_Mcam(eye, lookat, up, Mcam);
   transform(extended, Mcam);
 
   //Mper
   float fovy, aspect, n, f; n = 1.0; f = 100.0; fovy = 65.0; aspect = 4.0/3.0; //given values
-  constructMper(fovy, aspect, n, f, Mper);
+  construct_Mper(fovy, aspect, n, f, Mper);
   transform(extended, Mper);
 
   //Ignore w for now -- set to 1.0
@@ -318,10 +137,10 @@ int xRes, int yRes, int size, float* values)
   transform(verts, Mvp);
 
   //draw and output
-  draw("5.ppm", verts, indices, colors, xRes, yRes, values, 0);
+  draw("5_perspective_proj_matrix.ppm", verts, indices, colors, xres, yres, values, 0);
 }
   
-/* Problem 6: Perspective Divide */
+/* Perspective Divide */
 void p_divide(vector<VEC4>& extended)
 {
   int count = extended.size(); float w = 0.0;
@@ -332,35 +151,38 @@ void p_divide(vector<VEC4>& extended)
   }
 }
 
-void p6(vector<VEC4>& extended, vector<VEC3I>& indices, vector<VEC3>& colors, MATRIX4& Mvp, 
-int xRes, int yRes, int size, float* values)
+void persp_divide(vector<VEC4>& extended, vector<VEC3I>& indices, vector<VEC3>& colors, MATRIX4& Mvp, 
+int xres, int yres, int size, float* values)
 {
-  memset(values,0,sizeof(float)*size); //reinitialize values array
+  clear_floats(size, values);//reinitialize values array
   
   p_divide(extended);//perspective divide
   transform(extended, Mvp); //apply Mvp
 
-  draw("6.ppm", extended, indices, colors, xRes, yRes, values, 0); //draw and output
+  draw("6_perspective_divide.ppm", extended, indices, colors, xres, yres, values, 0); //draw and output
 }
 
-/* Problem 7: Z-buffering */
-void p7(vector<VEC4>& extended, vector<VEC3I>& indices, vector<VEC3>& colors, int xRes, int yRes, int size, float* values)
+/* Z-buffering */
+void z_buff(vector<VEC4>& extended, vector<VEC3I>& indices, vector<VEC3>& colors, int xres, int yres, int size, float* values)
 {
-  memset(values,0,sizeof(float)*size); //clear values array
-  draw("7.ppm", extended, indices, colors, xRes, yRes, values, 1); //draw and output, mode = 1 (z buffering)
+  clear_floats(size, values); //clear values array
+
+  // z-buffering occurs in draw()
+  draw("7_z_buffering.ppm", extended, indices, colors, xres, yres, values, 1); //draw and output, mode = 1 (z buffering)
 }
 
-/* Problem 8: Color Interpolation */
-void p8(vector<VEC4>& extended, vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors,
-int xRes, int yRes, int size, float* values)
+/* Color Interpolation */
+void color_interpolation(vector<VEC4>& extended, vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors,
+int xres, int yres, int size, float* values)
 {
   //reinitialize values
-  memset(values,0,sizeof(float)*size);
+  clear_floats(size, values);
   vertices.clear(); indices.clear(); colors.clear(); //extended.clear()
 
-  buildCubePerVertexColors(vertices, indices, colors); //get new colors
+  build_cube_vertex_colors(vertices, indices, colors); //get new colors
 
-  draw("8.ppm", extended, indices, colors, xRes, yRes, values, 2); //draw and output, mode = 2 (z-buffering + interpolation)
+  //color interpolation occurs in draw()
+  draw("8_color_interpolation.ppm", extended, indices, colors, xres, yres, values, 2); //draw and output, mode = 2 (z-buffering + interpolation)
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -372,12 +194,12 @@ int main(int argc, char* argv[])
   //dimensions of output image
   float nx = 800.0;
   float ny = 600.0;
-  int xRes = (int) nx;
-  int yRes = (int) ny;
-  int size = xRes*yRes*3;
+  int xres = (int) nx;
+  int yres = (int) ny;
+  int size = xres*yres*3;
 
   //initalize array of values to zero
-  float values[size]; memset(values,0,sizeof(float)*size); 
+  float values[size]; clear_floats(size, values);
 
   //our matrices
   MATRIX4 Mvp; MATRIX4 Mortho; MATRIX4 Mcam; MATRIX4 Mper;
@@ -391,7 +213,7 @@ int main(int argc, char* argv[])
   
   int parameter_count = 9; //expected number of input params
   float cam[parameter_count]; 
-  memset(cam, 0, sizeof(float) * parameter_count); //by default camera parameters are set to zero
+  clear_floats(sizeof(float)*parameter_count, cam); //by default camera parameters are set to zero
 
   if(argc > 1) //check for user input
   { 
@@ -416,38 +238,39 @@ int main(int argc, char* argv[])
       }
     }
 
-    buildCube(vertices, indices, colors); //get cube
+    build_cube(vertices, indices, colors); //get cube
     extend_vecs(vertices, extended);
     scale_vecs(extended, 0.5); //scale the vertices by 0.5
 
     //Mcam
-    constructMcam(parameters[0], parameters[1], parameters[2], Mcam);
+    construct_Mcam(parameters[0], parameters[1], parameters[2], Mcam);
     transform(extended, Mcam);
 
     //Mper
     float fovy, aspect, n, f; n = 1.0; f = 100.0; fovy = 65.0; aspect = 4.0/3.0; //given values
-    constructMper(fovy, aspect, n, f, Mper);
+    construct_Mper(fovy, aspect, n, f, Mper);
     transform(extended, Mper);  
 
     p_divide(extended); //perspective divide
     
     //Mvp
-    constructMvp(nx,ny,Mvp);
+    construct_Mvp(nx,ny,Mvp);
     transform(extended, Mvp); 
 
     //draw and output
-    draw("custom.ppm", extended, indices, colors, xRes, yRes, values, 2);
+    draw("custom.ppm", extended, indices, colors, xres, yres, values, 2);
   }
   else
   {
-    p1(extended, vertices, indices, colors, Mvp, nx, ny, values); //problem 1
-    p2(extended, indices, colors, xRes, yRes, size, values); //problem 2
-    p3(extended, vertices, indices, colors, Mvp, Mortho, xRes, yRes, size, values); //problem 3
-    p4(extended, indices, colors, Mcam, xRes, yRes, size, values); //problem 4 
-    p5(extended, vertices, indices, colors, Mvp, Mcam, Mper, xRes, yRes, size, values); //problem 5
-    p6(extended, indices, colors, Mvp, xRes, yRes, size, values); //problem 6
-    p7(extended, indices, colors, xRes, yRes, size, values); //problem 7
-    p8(extended, vertices, indices, colors, xRes, yRes, size, values); //problem 8
+    //Default -- demonstrate process visually, step by step
+    viewport_matrix(extended, vertices, indices, colors, Mvp, nx, ny, values); //create viewport matrix
+    triangle_rasterization(extended, indices, colors, xres, yres, size, values); //triangle rasterization
+    ortho_proj_matrix(extended, vertices, indices, colors, Mvp, Mortho, xres, yres, size, values); // create and apply the orthographic projection matrix
+    camera_matrix(extended, indices, colors, Mcam, xres, yres, size, values); // create and apply the camera matrix 
+    persp_proj_matrix(extended, vertices, indices, colors, Mvp, Mcam, Mper, xres, yres, size, values); // create and apply the perspective projection matrix
+    persp_divide(extended, indices, colors, Mvp, xres, yres, size, values); // perspective divide
+    z_buff(extended, indices, colors, xres, yres, size, values); // z buffering
+    color_interpolation(extended, vertices, indices, colors, xres, yres, size, values); // color interpolation
   }
   
   return 0;
@@ -461,10 +284,10 @@ int main(int argc, char* argv[])
  * mode = 3 ==> rasterization + z-buffering + color interpolation
  * 
  */
-void draw(const string& filename, vector<VEC4>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors, int xRes, int yRes, float* values, int mode)
+void draw(const string& filename, vector<VEC4>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors, int xres, int yres, float* values, int mode)
 {
   // initialize z-buffer
-  int size = xRes*yRes;
+  int size = xres*yres;
   float depths[size];
   for(int i = 0; i < size; i++)
   {
@@ -521,7 +344,7 @@ void draw(const string& filename, vector<VEC4>& vertices, vector<VEC3I>& indices
              (beta > 0 || (fb*imp_lin_eq(-1, -1, 2, 0, xcoords, ycoords))>0) && 
              (gamma > 0 || (fg*imp_lin_eq(-1, -1, 0, 1, xcoords, ycoords))>0))
           {
-            index = (yRes-y)*xRes + x;
+            index = (yres-y)*xres + x;
             curr_depth = alpha*zcoords[0] + beta*zcoords[1] + gamma*zcoords[2];
             if(depths[index] > curr_depth || mode <= 0) //check depth & mode -- color appropriately
             {
@@ -556,26 +379,45 @@ void draw(const string& filename, vector<VEC4>& vertices, vector<VEC3I>& indices
     }
   }
 
-  writePPM(filename, xRes, yRes, values);
+  write_ppm(filename, xres, yres, values);
 }
 
-/* transform()
- * Applies matrix to a vector of VEC4s.
+/* color_vertices()
+ * A simplified version of draw() that only colors the vertices of the triangles.
  */
-void transform(vector<VEC4>& vertices, const MATRIX4& M)
+void color_vertices(const vector<VEC4> vertices, vector<VEC3I>& indices, vector<VEC3>& colors, int xres, int yres, float* values)
 {
-  int verts_count = vertices.size();
+  int triangle_count = indices.size();
+  VEC4 interm; interm.setZero();
+  float x, y, z; int index; x = y = z = 0.0; index = 0;
 
-  for(int i = 0; i < verts_count; i++)
+  for (int i = 0; i < triangle_count; i++) //for each triangle
   {
-    vertices[i] = M*vertices[i];
+    for(int j = 0; j < 3; j++) //for each vertex in the triangle
+    {
+      index = indices[i][j];
+      interm = vertices[index];
+      
+      //get index of pixel
+      x = interm[0];
+      y = interm[1];
+      index = (yres-y)*xres*3 + 3*x;
+      
+      //color vertex
+      values[index] = 255*colors[i][0]; 
+      values[index+1] =255*colors[i][1];
+      values[index+2] = 255*colors[i][2];
+    }
   }
 }
 
-/* constructMvp()
+////////////////////////////////////////////////////////////////////////////////////////////////
+// Geometry Functions
+////////////////////////////////////////////////////////////////////////////////////////////////
+/* construct_Mvp()
  * Creates viewport matrix.
  */
-void constructMvp(float nx, float ny, MATRIX4& Mvp)
+void construct_Mvp(float nx, float ny, MATRIX4& Mvp)
 {
   Mvp.setIdentity();
 
@@ -583,10 +425,10 @@ void constructMvp(float nx, float ny, MATRIX4& Mvp)
   Mvp(1,1) = ny/2.0; Mvp(1, 3) = ny/2.0;
 }
 
-/* constructMortho()
+/* construct_Mortho()
  * Creates orthographic projection matrix.
  */
-void constructMortho(float l, float r, float t, float b, float n, float f, MATRIX4& Mortho)
+void construct_Mortho(float l, float r, float t, float b, float n, float f, MATRIX4& Mortho)
 {
   Mortho.setIdentity();
 
@@ -594,17 +436,17 @@ void constructMortho(float l, float r, float t, float b, float n, float f, MATRI
   Mortho(0,3) = -(r+l)/(r-l); Mortho(1,3) = -(t+b)/(t-b); Mortho(2,3) = -(n+f)/(n-f);
 }
 
-/* constructMcam()
+/* construct_Mcam()
  * Creates camera matrix.
  */
-void constructMcam(VEC3 eye, VEC3 lookAt, VEC3 up, MATRIX4& Mcam)
+void construct_Mcam(VEC3 eye, VEC3 lookat, VEC3 up, MATRIX4& Mcam)
 {
   //initialize vars
   Mcam.setIdentity(); 
   VEC3 w; w.setZero(); VEC3 u; u.setZero(); VEC3 v; v.setZero();
   
   //calculate basis vectors
-  VEC3 g; g = eye - lookAt;
+  VEC3 g; g = eye - lookat;
   w = g.normalized();
   u = up.cross(w); u.normalize();
   v = w.cross(u);
@@ -620,10 +462,10 @@ void constructMcam(VEC3 eye, VEC3 lookAt, VEC3 up, MATRIX4& Mcam)
   Mcam = Mbasis*Meye; //Mcam is the product of the above matrices
 }
 
-/* constructMper()
+/* construct_Mper()
  * Creates perspective projection matrix.
  */
-void constructMper(float fovy, float aspect, float n, float f, MATRIX4& Mper)
+void construct_Mper(float fovy, float aspect, float n, float f, MATRIX4& Mper)
 {
   Mper.setZero();
 
@@ -639,6 +481,188 @@ void constructMper(float fovy, float aspect, float n, float f, MATRIX4& Mper)
   Mper(1,1) = temp1/temp4; Mper(1,2) = (t+b)/temp4; 
   Mper(2, 2) = (n+f)/temp3; Mper(2,3) = (temp1*f)/temp3;
   Mper(3,2) = -1;
+}
+
+/* imp_lin_eq()
+ * Calculates the result of the implicit line equation given an array of coordinates and the
+ * indices of the relevant coordinates.
+ */
+float imp_lin_eq(float x, float y, int i, int j, const float* xcoords, const float* ycoords)
+{
+  int temp = 0;
+  
+  if(xcoords[i] > xcoords[j]) //swap points
+  {
+    temp = i;
+    i = j;
+    j = temp;
+  }
+
+  return (ycoords[i]-ycoords[j])*x + (xcoords[j]-xcoords[i])*y + xcoords[i]*ycoords[j] - xcoords[j]*ycoords[i];
+}
+
+/* build_big_square()
+ * build out a single square
+ */
+void build_big_square(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
+{
+  vertices.push_back(VEC3(1.0, 1.0, 1.5));
+  vertices.push_back(VEC3( 11.0, 1.0, 1.5));
+  vertices.push_back(VEC3(1.0,  11.0, 1.5));
+  vertices.push_back(VEC3( 11.0,  11.0, 1.5));
+
+  // front face
+  indices.push_back(VEC3I(0, 1, 2));
+  indices.push_back(VEC3I(2, 1, 3));
+  colors.push_back(VEC3(1.0, 0.0, 0.0));
+  colors.push_back(VEC3(0.0, 0.0, 1.0));
+}
+
+/* build_square()
+ * build out a single square
+ */
+void build_square(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
+{
+  vertices.push_back(VEC3(-0.5, -0.5,  0.5)); //0 -- (200, 150)
+  vertices.push_back(VEC3( 0.5, -0.5,  0.5)); //1 -- (600, 150)
+  vertices.push_back(VEC3(-0.5,  0.5,  0.5)); //2 -- (200, 450)
+  vertices.push_back(VEC3( 0.5,  0.5,  0.5)); //3 -- (600, 450)
+
+  // front face
+  indices.push_back(VEC3I(0, 1, 2));
+  indices.push_back(VEC3I(2, 1, 3));
+  colors.push_back(VEC3(1.0, 0.0, 0.0));
+  colors.push_back(VEC3(0.0, 1.0, 0.0));
+}
+
+/* build_cube()
+ * build out a cube
+ */
+void build_cube(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
+{
+  vertices.push_back(VEC3(-0.5, -0.5,  0.5));
+  vertices.push_back(VEC3( 0.5, -0.5,  0.5));
+  vertices.push_back(VEC3(-0.5,  0.5,  0.5));
+  vertices.push_back(VEC3( 0.5,  0.5,  0.5));
+  vertices.push_back(VEC3(-0.5, -0.5, -0.5));
+  vertices.push_back(VEC3( 0.5, -0.5, -0.5));
+  vertices.push_back(VEC3(-0.5,  0.5, -0.5));
+  vertices.push_back(VEC3( 0.5,  0.5, -0.5));
+
+  // front face
+  indices.push_back(VEC3I(0, 1, 2));
+  indices.push_back(VEC3I(2, 1, 3));
+  colors.push_back(VEC3(1.0, 0.0, 0.0));
+  colors.push_back(VEC3(1.0, 0.0, 0.0));
+
+  // back face
+  indices.push_back(VEC3I(5, 4, 7));
+  indices.push_back(VEC3I(7, 4, 6));
+  colors.push_back(VEC3(0.0, 1.0, 0.0));
+  colors.push_back(VEC3(0.0, 1.0, 0.0));
+
+  // left face
+  indices.push_back(VEC3I(4, 0, 6));
+  indices.push_back(VEC3I(6, 0, 2));
+  colors.push_back(VEC3(0.0, 0.0, 1.0));
+  colors.push_back(VEC3(0.0, 0.0, 1.0));
+
+  // right face
+  indices.push_back(VEC3I(1, 5, 3));
+  indices.push_back(VEC3I(3, 5, 7));
+  colors.push_back(VEC3(0.0, 1.0, 1.0));
+  colors.push_back(VEC3(0.0, 1.0, 1.0));
+
+  // top face
+  indices.push_back(VEC3I(2, 3, 6));
+  indices.push_back(VEC3I(6, 3, 7));
+  colors.push_back(VEC3(1.0, 1.0, 0.0));
+  colors.push_back(VEC3(1.0, 1.0, 0.0));
+
+  // bottom face
+  indices.push_back(VEC3I(4, 5, 0));
+  indices.push_back(VEC3I(0, 5, 1));
+  colors.push_back(VEC3(1.0, 0.0, 1.0));
+  colors.push_back(VEC3(1.0, 0.0, 1.0));
+}
+
+/* build_cube_vertex_colors()
+ * build out a cube
+ */
+void build_cube_vertex_colors(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
+{
+  vertices.push_back(VEC3(-0.5, -0.5,  0.5));
+  vertices.push_back(VEC3( 0.5, -0.5,  0.5));
+  vertices.push_back(VEC3(-0.5,  0.5,  0.5));
+  vertices.push_back(VEC3( 0.5,  0.5,  0.5));
+  vertices.push_back(VEC3(-0.5, -0.5, -0.5));
+  vertices.push_back(VEC3( 0.5, -0.5, -0.5));
+  vertices.push_back(VEC3(-0.5,  0.5, -0.5));
+  vertices.push_back(VEC3( 0.5,  0.5, -0.5));
+  colors.push_back(VEC3(1.0, 0.0, 0.0));
+  colors.push_back(VEC3(1.0, 0.0, 0.0));
+  colors.push_back(VEC3(0.0, 1.0, 0.0));
+  colors.push_back(VEC3(0.0, 1.0, 0.0));
+  colors.push_back(VEC3(0.0, 0.0, 1.0));
+  colors.push_back(VEC3(0.0, 0.0, 1.0));
+  colors.push_back(VEC3(1.0, 1.0, 0.0));
+  colors.push_back(VEC3(1.0, 1.0, 0.0));
+
+  // front face
+  indices.push_back(VEC3I(0, 1, 2));
+  indices.push_back(VEC3I(2, 1, 3));
+
+  // back face
+  indices.push_back(VEC3I(5, 4, 7));
+  indices.push_back(VEC3I(7, 4, 6));
+
+  // left face
+  indices.push_back(VEC3I(4, 0, 6));
+  indices.push_back(VEC3I(6, 0, 2));
+
+  // right face
+  indices.push_back(VEC3I(1, 5, 3));
+  indices.push_back(VEC3I(3, 5, 7));
+
+  // top face
+  indices.push_back(VEC3I(2, 3, 6));
+  indices.push_back(VEC3I(6, 3, 7));
+
+  // bottom face
+  indices.push_back(VEC3I(4, 5, 0));
+  indices.push_back(VEC3I(0, 5, 1));
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+// Vector Functions
+////////////////////////////////////////////////////////////////////////////////////////////////
+/* truncate()
+ * Drops the final value in a VEC4 to return a VEC3.
+ */
+VEC3 truncate(const VEC4& v)
+{
+  return VEC3(v[0], v[1], v[2]);
+}
+
+/* extend()
+ * Adds a value of '1' to a VEC3 to return a VEC4.
+ */
+VEC4 extend(const VEC3& v)
+{
+  return VEC4(v[0], v[1], v[2], 1.0);
+}
+
+/* transform()
+ * Applies matrix to a vector of VEC4s.
+ */
+void transform(vector<VEC4>& vertices, const MATRIX4& M)
+{
+  int verts_count = vertices.size();
+
+  for(int i = 0; i < verts_count; i++)
+  {
+    vertices[i] = M*vertices[i];
+  }
 }
 
 /* scale_vecs()
@@ -686,50 +710,68 @@ void truncate_vecs(const vector<VEC4>& vertices, vector<VEC3>& truncated)
   }
 }
 
-/* color_vertices()
- * A simplified version of draw() that only colors the vertices of the triangles.
+/////////////////////////////////////////////////////////////////////
+// Utility Functions
+/////////////////////////////////////////////////////////////////////
+/* clear_floats()
+ * sets all values in a float array to 0
  */
-void color_vertices(const vector<VEC4> vertices, vector<VEC3I>& indices, vector<VEC3>& colors, int xRes, int yRes, float* values)
+void clear_floats(int size, float* values)
 {
-  int triangle_count = indices.size();
-  VEC4 interm; interm.setZero();
-  float x, y, z; int index; x = y = z = 0.0; index = 0;
-
-  for (int i = 0; i < triangle_count; i++) //for each triangle
-  {
-    for(int j = 0; j < 3; j++) //for each vertex in the triangle
-    {
-      index = indices[i][j];
-      interm = vertices[index];
-      
-      //get index of pixel
-      x = interm[0];
-      y = interm[1];
-      index = (yRes-y)*xRes*3 + 3*x;
-      
-      //color vertex
-      values[index] = 255*colors[i][0]; 
-      values[index+1] =255*colors[i][1];
-      values[index+2] = 255*colors[i][2];
-    }
-  }
+  memset(values,0,sizeof(float)*size);
 }
 
-/* imp_lin_eq()
- * Calculates the result of the implicit line equation given an array of coordinates and the
- * indices of the relevant coordinates.
- */
-float imp_lin_eq(float x, float y, int i, int j, const float* xcoords, const float* ycoords)
+void read_ppm(const string& filename, int& xres, int& yres, float*& values)
 {
-  int temp = 0;
-  
-  if(xcoords[i] > xcoords[j]) //swap points
+  // try to open the file
+  FILE *fp;
+  fp = fopen(filename.c_str(), "rb");
+  if (fp == NULL)
   {
-    temp = i;
-    i = j;
-    j = temp;
+    cout << " Could not open file \"" << filename.c_str() << "\" for reading." << endl;
+    cout << " Make sure you're not trying to read from a weird location or with a " << endl;
+    cout << " strange filename. Bailing ... " << endl;
+    exit(0);
   }
 
-  return (ycoords[i]-ycoords[j])*x + (xcoords[j]-xcoords[i])*y + xcoords[i]*ycoords[j] - xcoords[j]*ycoords[i];
+  // get the dimensions
+  fscanf(fp, "P6\n%d %d\n255\n", &xres, &yres);
+  int total_cells = xres * yres;
+
+  // grab the pixel values
+  unsigned char* pixels = new unsigned char[3 * total_cells];
+  fread(pixels, 1, total_cells * 3, fp);
+
+  // copy to a nicer data type
+  values = new float[3 * total_cells];
+  for (int i = 0; i < 3 * total_cells; i++)
+    values[i] = pixels[i];
+
+  // clean up
+  delete[] pixels;
+  fclose(fp);
+  cout << " Read in file " << filename.c_str() << endl;
 }
 
+void write_ppm(const string& filename, int& xres, int& yres, const float* values)
+{
+  int total_cells = xres * yres;
+  unsigned char* pixels = new unsigned char[3 * total_cells];
+  for (int i = 0; i < 3 * total_cells; i++)
+    pixels[i] = values[i];
+
+  FILE *fp;
+  fp = fopen(filename.c_str(), "wb");
+  if (fp == NULL)
+  {
+    cout << " Could not open file \"" << filename.c_str() << "\" for writing." << endl;
+    cout << " Make sure you're not trying to write from a weird location or with a " << endl;
+    cout << " strange filename. Bailing ... " << endl;
+    exit(0);
+  }
+
+  fprintf(fp, "P6\n%d %d\n255\n", xres, yres);
+  fwrite(pixels, 1, total_cells * 3, fp);
+  fclose(fp);
+  delete[] pixels;
+}
