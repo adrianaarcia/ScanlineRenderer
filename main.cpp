@@ -503,6 +503,8 @@ float imp_lin_eq(float x, float y, int i, int j, const float* xcoords, const flo
 
 /* build_big_square()
  * build out a single square
+ * 
+ * provided by Theodore Kim
  */
 void build_big_square(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
 {
@@ -520,6 +522,8 @@ void build_big_square(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC
 
 /* build_square()
  * build out a single square
+ * 
+ * provided by Theodore Kim
  */
 void build_square(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
 {
@@ -537,6 +541,8 @@ void build_square(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& 
 
 /* build_cube()
  * build out a cube
+ *
+ * provided by Theodore Kim
  */
 void build_cube(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
 {
@@ -588,6 +594,8 @@ void build_cube(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& co
 
 /* build_cube_vertex_colors()
  * build out a cube
+ * 
+ * provided by Theodore Kim
  */
 void build_cube_vertex_colors(vector<VEC3>& vertices, vector<VEC3I>& indices, vector<VEC3>& colors)
 {
@@ -721,6 +729,7 @@ void clear_floats(int size, float* values)
   memset(values,0,sizeof(float)*size);
 }
 
+//provided by Theodore Kim
 void read_ppm(const string& filename, int& xres, int& yres, float*& values)
 {
   // try to open the file
@@ -753,6 +762,7 @@ void read_ppm(const string& filename, int& xres, int& yres, float*& values)
   cout << " Read in file " << filename.c_str() << endl;
 }
 
+//provided by Theodore Kim
 void write_ppm(const string& filename, int& xres, int& yres, const float* values)
 {
   int total_cells = xres * yres;
