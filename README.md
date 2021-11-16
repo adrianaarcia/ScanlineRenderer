@@ -27,6 +27,13 @@ Usage:
   make
   ./run [eye value 1] [eye value 2] [eye value 3] [lookat value 1] [lookat value 2] [lookat value 3] [up value 1] [up value 2] [up value 3]
 ```
+An example output with `eye` = (1,1,1), `lookat` = (0.2,0.4,0), and `up` =(0,0,1) is included in the `examples` folder.
+
+```
+make
+./run 1 1 1 0.2 0.4 0 0 0 1
+```
+
 Running the code with no command line arguments will produce 8 images demonstrating the result of each of the steps in the description above with `eye` = (1,1,1), `lookat` = (0,0,0), and `up` =(0,1,0).
 
 ```
