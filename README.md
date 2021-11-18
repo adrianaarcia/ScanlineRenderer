@@ -2,10 +2,10 @@
 Scanline renderer implemented using C++.
 Last Updated: 2/2/2020
 
-# Dependencies
+## Dependencies
  * Eigen: I used the matrix and vector classes from the Eigen library (http://eigen.tuxfamily.org/).
 
-# Description
+## Description
 This is a scanline renderer, implemented using C++.
 
 This code includes:
@@ -19,7 +19,7 @@ This code includes:
 * Z-buffering
 * Color interpolation
 
-# Running the Code
+## Running the Code
 The user can define values for the `eye`, `lookat`, and `up` vectors. An image named 'custom.ppm' will be produced using these values. 
 Usage:
 
@@ -40,7 +40,7 @@ Running the code with no command line arguments will produce 8 images demonstrat
   make
   ./run
 ````
-# Potential Improvements/Additions
+## Potential Improvements/Additions
 * Include texture mapping
 * The transform() function applies a matrix to a set of vertices. In order to apply more than one, I have
 to call the function consecutively with each transform. I would like to be able to multiply the matrices 
